@@ -1,0 +1,158 @@
+
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sajib Tuition Manager</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#172033}
+header{background:#173b70;color:white;padding:22px 16px}
+header h2{margin:0 0 7px}
+.container{padding:15px;max-width:700px;margin:auto}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.card,.panel{background:white;padding:16px;border-radius:12px;margin-bottom:13px;box-shadow:0 2px 8px #0001}
+.stats b{display:block;font-size:23px;margin-top:8px;color:#1766b1}
+input{width:100%;padding:12px;margin:7px 0;border:1px solid #ccd3df;border-radius:8px;font-size:16px}
+button{padding:11px 14px;border:0;border-radius:8px;background:#1766b1;color:white;font-size:15px;margin:4px 2px}
+.green{background:#16834a}
+.red{background:#c43b3b}
+.gray{background:#64748b}
+.student{border:1px solid #ddd;padding:12px;border-radius:10px;margin:10px 0;background:#fff}
+.student h3{margin:3px 0 8px}
+.small{font-size:13px;color:#64748b}
+</style>
+</head>
+<body>
+<header>
+<h2>📚 Sajib Tuition Manager</h2>
+<p>Student Fee Management System</p>
+</header>
+<div class="container">
+<div class="stats">
+<div class="card">মোট শিক্ষার্থী<b id="total">0</b></div>
+<div class="card">মাসিক আয়<b id="income">৳0</b></div>
+<div class="card">জমা হয়েছে<b id="paid">৳0</b></div>
+<div class="card">বকেয়া<b id="due">৳0</b></div>
+</div>
+
+<div class="panel">
+<h3>➕ নতুন শিক্ষার্থী যোগ করুন</h3>
+<input id="name" placeholder="শিক্ষার্থীর নাম">
+<input id="phone" type="tel" placeholder="মোবাইল নম্বর">
+<input id="className" placeholder="শ্রেণি">
+<input id="fee" type="number" placeholder="মাসিক বেতন (টাকা)">
+<button class="green" onclick="addStudent()">শিক্ষার্থী সংরক্ষণ</button>
+</div>
+
+<div class="panel">
+<h3>🔎 শিক্ষার্থী খুঁজুন</h3>
+<input id="search" placeholder="নাম বা মোবাইল নম্বর" oninput="render()">
+<h3>শিক্ষার্থীদের তালিকা</h3>
+<div id="list"></div>
+</div>
+
+<div class="panel">
+<button class="gray" onclick="exportData()">হিসাব ডাউনলোড (CSV)</button>
+<button class="red" onclick="backup()">ব্যাকআপ</button>
+<input type="file" id="restoreFile" accept=".json" onchange="restore(event)">
+</div>
+</div>
+
+<script>
+let students=JSON.parse(localStorage.getItem("sajib_students")||"[]");
+function save(){
+ localStorage.setItem("sajib_students",JSON.stringify(students));
+ render();
+}
+function addStudent(){
+ let name=document.getElementById("name").value.trim();
+ let phone=document.getElementById("phone").value.trim();
+ let cls=document.getElementById("className").value.trim();
+ let fee=Number(document.getElementById("fee").value);
+ if(!name||!phone||!fee){alert("নাম, মোবাইল ও বেতন লিখুন");return}
+ students.push({id:Date.now(),name,phone,cls,fee,paid:0});
+ ["name","phone","className","fee"].forEach(x=>document.getElementById(x).value="");
+ save();
+ alert("শিক্ষার্থী যোগ হয়েছে");
+}
+function payment(id){
+ let s=students.find(x=>x.id===id);
+ let amount=Number(prompt("কত টাকা জমা দিয়েছেন?"));
+ if(!amount||amount<=0)return;
+ s.paid+=amount;
+ s.history=s.history||[];
+ s.history.push({amount,date:new Date().toLocaleDateString("bn-BD")});
+ save();
+ alert("বেতন জমা হয়েছে");
+}
+function sms(s){
+ let due=Math.max(0,s.fee-s.paid);
+ let msg=`সম্মানিত অভিভাবক, ${s.name}-এর মাসিক বেতন ${s.fee} টাকা। জমা ${s.paid} টাকা, বকেয়া ${due} টাকা। - Sajib Tuition Manager`;
+ location.href="sms:"+s.phone+"?body="+encodeURIComponent(msg);
+}
+function removeStudent(id){
+ if(confirm("শিক্ষার্থী মুছে ফেলবেন?")){
+ students=students.filter(x=>x.id!==id);
+ save();
+ }
+}
+function render(){
+ let q=document.getElementById("search").value.toLowerCase();
+ let total=students.length,paid=0,income=0,due=0;
+ students.forEach(s=>{
+ paid+=s.paid;
+ income+=s.fee;
+ due+=Math.max(0,s.fee-s.paid);
+ });
+ document.getElementById("total").innerText=total;
+ document.getElementById("income").innerText="৳"+income;
+ document.getElementById("paid").innerText="৳"+paid;
+ document.getElementById("due").innerText="৳"+due;
+ document.getElementById("list").innerHTML="";
+ students.filter(s=>(s.name+" "+s.phone).toLowerCase().includes(q)).forEach(s=>{
+ let d=Math.max(0,s.fee-s.paid);
+ let div=document.createElement("div");
+ div.className="student";
+ let h=document.createElement("h3");h.textContent=s.name;
+ let p=document.createElement("p");
+ p.textContent="মোবাইল: "+s.phone+" | শ্রেণি: "+(s.cls||"—");
+ let f=document.createElement("p");
+ f.textContent="মাসিক বেতন: ৳"+s.fee+" | জমা: ৳"+s.paid+" | বকেয়া: ৳"+d;
+ let a=document.createElement("button");a.className="green";a.textContent="বেতন জমা";
+ a.onclick=()=>payment(s.id);
+ let b=document.createElement("button");b.textContent="SMS পাঠান";
+ b.onclick=()=>sms(s);
+ let c=document.createElement("button");c.className="red";c.textContent="মুছুন";
+ c.onclick=()=>removeStudent(s.id);
+ div.append(h,p,f,a,b,c);
+ document.getElementById("list").append(div);
+ });
+}
+function exportData(){
+ let rows=[["নাম","মোবাইল","শ্রেণি","মাসিক বেতন","জমা","বকেয়া"]];
+ students.forEach(s=>rows.push([s.name,s.phone,s.cls,s.fee,s.paid,Math.max(0,s.fee-s.paid)]));
+ let csv="\uFEFF"+rows.map(r=>r.join(",")).join("\n");
+ let a=document.createElement("a");
+ a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+ a.download="sajib-tuition-report.csv";a.click();
+}
+function backup(){
+ let a=document.createElement("a");
+ a.href=URL.createObjectURL(new Blob([JSON.stringify(students)],{type:"application/json"}));
+ a.download="sajib-backup.json";a.click();
+}
+function restore(e){
+ let file=e.target.files[0];if(!file)return;
+ let reader=new FileReader();
+ reader.onload=()=>{
+ try{students=JSON.parse(reader.result);save();alert("ব্যাকআপ ফিরিয়ে আনা হয়েছে")}
+ catch(err){alert("ফাইলটি সঠিক নয়")}
+ };
+ reader.readAsText(file);
+}
+render();
+</script>
+</body>
+</html>
